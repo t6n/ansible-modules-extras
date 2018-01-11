@@ -206,10 +206,21 @@ def package_present(name, installed_state, pkg_spec, module):
                     # It turns out we were able to install the package.
                     module.debug("package_present(): we were able to install the package")
                 else:
-                    # We really did fail, fake the return code.
-                    module.debug("package_present(): we really did fail")
-                    rc = 1
-                    changed=False
+                    match = re.search("^Ambiguous*", stderr)
+                    # There are multiple versions available of this package.
+                    # If state is 'latest' install the latest package
+                    if match and module.params['state'] == 'latest':
+                        info_cmd = "pkg_info -Iq"
+                        (rc, stdout, stderr) = execute_command("%s %s" % (info_cmd, name), module)
+                        if len(stdout.splitlines()) > 1:
+                            latest_package = stdout.splitlines()[-1]
+                            (rc, stdout, stderr) = execute_command("%s %s" % (install_cmd, latest_package), module)
+                            changed=True
+                    else:
+                        # We really did fail, fake the return code.
+                        module.debug("package_present(): we really did fail")
+                        rc = 1
+                        changed=False
             else:
                 module.debug("package_present(): stderr was not set")
 
